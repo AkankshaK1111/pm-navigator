@@ -123,6 +123,13 @@ export interface SavedProgress {
   currentWeek: number;
   mockInterviewHistory: MockInterviewRecord[];
   startedAt: string; // ISO date
+  // Compass features
+  resumeData: ResumeData | null;
+  gateScore: GateScore | null;
+  aiReadinessScores: AIReadinessScores | null;
+  dailyTaskHistory: DailyTaskRecord[];
+  targetCompany: string | null;
+  northChatHistory: NorthMessage[];
 }
 
 export interface MockInterviewRecord {
@@ -133,6 +140,240 @@ export interface MockInterviewRecord {
   score: number;
   feedback: InterviewFeedback | null;
   createdAt: string;
+}
+
+// ── Resume Parsing ──────────────────────────────────────────
+export interface PMHighlight {
+  text: string;
+  type: 'strength' | 'warning' | 'action';
+  label: string;
+}
+
+export interface ResumeData {
+  name: string;
+  email: string | null;
+  phone: string | null;
+  currentRole: string;
+  totalExperience: string;
+  experience: string[];
+  awards: string[];
+  pmHighlights: PMHighlight[];
+  skills: string[];
+  fileName?: string;
+}
+
+// ── Gate Task ───────────────────────────────────────────────
+export interface GateScore {
+  score: number;
+  thinkingStyle: string;
+  headline: string;
+  strength: string;
+  gap: string;
+}
+
+// ── AI Readiness Scoring ────────────────────────────────────
+export type AIReadinessStatus = 'Gap' | 'Developing' | 'Solid' | 'Strong';
+
+export interface AIReadinessDimension {
+  name: string;
+  score: number;
+  status: AIReadinessStatus;
+  note: string;
+}
+
+export interface AIReadinessScores {
+  dimensions: AIReadinessDimension[];
+  overall: number;
+  headline: string;
+}
+
+// ── Daily Task Scoring ──────────────────────────────────────
+export type TaskScoringType =
+  | 'product-teardown'
+  | 'metric-diagnosis'
+  | 'business-case'
+  | 'technical-tradeoff'
+  | 'ai-feature-design'
+  | 'stakeholder-conflict';
+
+export interface DailyTaskScore {
+  score: number;
+  headline: string;
+  strength: string;
+  gap: string;
+  dimensionImpact: {
+    name: string;
+    delta: number;
+    newEstimate: number;
+  };
+}
+
+export interface DailyTaskRecord {
+  id: string;
+  taskType: TaskScoringType;
+  taskPrompt: string;
+  dimension: string;
+  answerText: string;
+  result: DailyTaskScore;
+  createdAt: string;
+}
+
+// ── Market Data ─────────────────────────────────────────────
+export interface HiringBar {
+  productSense: number;
+  analyticalDepth: number;
+  businessFraming: number;
+  technicalCredibility: number;
+  aiFluency: number;
+  behavioural: number;
+}
+
+export interface MarketDataCompany {
+  name: string;
+  stage: string;
+  vertical: string;
+  city: string;
+  pmTeamSize: string;
+  annualJuniorPMIntake: string;
+  hasAPMProgram: boolean;
+  hiringMethod: string;
+  interviewFormat: string[];
+  interviewRounds: number;
+  hiringBar: HiringBar;
+  switcherFriendly: boolean;
+  switcherNote: string;
+  commonRejectionReasons: string[];
+  salaryRange: string;
+  recentSignals: string[];
+  topRoles: string[];
+  skillsWeighted: string[];
+}
+
+export interface MarketJobListing {
+  id: string;
+  title: string;
+  company: string;
+  stage: string;
+  vertical: string;
+  city: string;
+  salary: string;
+  postedDaysAgo: number;
+  requirements: Partial<HiringBar>;
+  description: string;
+  interviewRounds: number;
+  switcherFriendly: boolean;
+}
+
+export interface MarketTrend {
+  trend: string;
+  detail: string;
+  impact: string;
+  relevantDimension: string | null;
+  source: string;
+}
+
+export interface TransitionProfile {
+  background: string;
+  conversionRate: string;
+  avgTimeToOffer: string;
+  bestFitCompanies: string[];
+  note: string;
+}
+
+export interface MarketData {
+  companies: MarketDataCompany[];
+  marketTrends: MarketTrend[];
+  transitionIntelligence: {
+    successRateByBackground: TransitionProfile[];
+    switcherFriendlyRanking: Array<{ company: string; score: number; reason: string }>;
+  };
+  interviewFormats: Record<string, { typical: string[]; keyDifference: string }>;
+  compensation: Record<string, Array<{ level: string; tier: string; range: string }>>;
+  jobListings: MarketJobListing[];
+}
+
+// ── Job Intelligence ────────────────────────────────────────
+export interface JobMatch {
+  title: string;
+  company: string;
+  stage: string;
+  vertical: string;
+  city: string;
+  fit: number;
+  isTarget: boolean;
+  gapCount: number;
+  gapNote: string;
+  salary: string;
+  interviewRounds: number;
+}
+
+export interface JobListingWithFit extends MarketJobListing {
+  fitPercent: number;
+  dimComparisons: Array<{ dim: string; user: number; required: number; met: boolean }>;
+}
+
+export interface TrendSignal {
+  text: string;
+  impact: 'positive' | 'warning' | 'neutral' | 'negative';
+}
+
+// ── Post-Rejection Agent ────────────────────────────────────
+export interface RejectionRootCause {
+  dimension: string;
+  userScore: number;
+  companyBar: number;
+  gap: number;
+  explanation: string;
+}
+
+export interface RejectionPlanDay {
+  day: number;
+  task: string;
+  output: string;
+  time: string;
+}
+
+export interface RejectionPlanWeek {
+  week: number;
+  theme: string;
+  days: RejectionPlanDay[];
+}
+
+export interface RejectionDiagnosis {
+  company: string;
+  round: string;
+  headline: string;
+  rootCause: {
+    primary: RejectionRootCause;
+    secondary: RejectionRootCause;
+  };
+  recoveryPlan: {
+    duration: string;
+    focusAreas: string[];
+    weeks: RejectionPlanWeek[];
+  };
+  reapplySignal: string;
+  ragSource?: string;
+}
+
+// ── North AI Chat ───────────────────────────────────────────
+export interface NorthMessage {
+  id: string;
+  role: 'user' | 'north';
+  text: string;
+  timestamp: string;
+}
+
+export interface NorthContext {
+  name: string;
+  background: string;
+  targetCompany: string;
+  currentRole: string;
+  totalExperience: string;
+  readinessOverall: number | null;
+  gateScore: GateScore | null;
+  resumeHighlights: PMHighlight[];
+  aiDimensions: AIReadinessDimension[];
 }
 
 // Legacy compat for landing page components

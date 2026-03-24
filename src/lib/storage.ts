@@ -1,4 +1,14 @@
-import { UserProfile, AssessmentResult, MockInterviewRecord, SavedProgress } from '@/src/types';
+import {
+  UserProfile,
+  AssessmentResult,
+  MockInterviewRecord,
+  SavedProgress,
+  ResumeData,
+  GateScore,
+  AIReadinessScores,
+  DailyTaskRecord,
+  NorthMessage,
+} from '@/src/types';
 
 const STORAGE_KEY = 'pm_navigator_progress';
 
@@ -10,6 +20,12 @@ function getDefaultProgress(): SavedProgress {
     currentWeek: 1,
     mockInterviewHistory: [],
     startedAt: new Date().toISOString(),
+    resumeData: null,
+    gateScore: null,
+    aiReadinessScores: null,
+    dailyTaskHistory: [],
+    targetCompany: null,
+    northChatHistory: [],
   };
 }
 
@@ -71,6 +87,44 @@ export function saveMockInterview(record: MockInterviewRecord): void {
 export function setCurrentWeek(week: number): void {
   const progress = loadProgress();
   progress.currentWeek = week;
+  saveProgress(progress);
+}
+
+// ── Compass Feature Storage ─────────────────────────────────
+
+export function saveResumeData(data: ResumeData): void {
+  const progress = loadProgress();
+  progress.resumeData = data;
+  saveProgress(progress);
+}
+
+export function saveGateScore(score: GateScore): void {
+  const progress = loadProgress();
+  progress.gateScore = score;
+  saveProgress(progress);
+}
+
+export function saveAIReadinessScores(scores: AIReadinessScores): void {
+  const progress = loadProgress();
+  progress.aiReadinessScores = scores;
+  saveProgress(progress);
+}
+
+export function saveDailyTaskResult(record: DailyTaskRecord): void {
+  const progress = loadProgress();
+  progress.dailyTaskHistory.push(record);
+  saveProgress(progress);
+}
+
+export function saveTargetCompany(company: string): void {
+  const progress = loadProgress();
+  progress.targetCompany = company;
+  saveProgress(progress);
+}
+
+export function saveNorthChatHistory(messages: NorthMessage[]): void {
+  const progress = loadProgress();
+  progress.northChatHistory = messages;
   saveProgress(progress);
 }
 

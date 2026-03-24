@@ -100,6 +100,73 @@ create policy "Users can insert own interviews"
   on public.mock_interviews for insert
   with check (auth.uid() = user_id);
 
+-- ── Resume Data ─────────────────────────────────────────────
+create table if not exists public.resume_data (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null unique,
+  parsed_data jsonb not null,
+  file_name text,
+  created_at timestamptz default now(),
+  updated_at timestamptz default now()
+);
+
+alter table public.resume_data enable row level security;
+
+create policy "Users can view own resume" on public.resume_data for select using (auth.uid() = user_id);
+create policy "Users can upsert own resume" on public.resume_data for insert with check (auth.uid() = user_id);
+create policy "Users can update own resume" on public.resume_data for update using (auth.uid() = user_id);
+
+-- ── Gate Scores ─────────────────────────────────────────────
+create table if not exists public.gate_scores (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  score integer not null,
+  thinking_style text,
+  headline text,
+  strength text,
+  gap text,
+  task_text text,
+  created_at timestamptz default now()
+);
+
+alter table public.gate_scores enable row level security;
+
+create policy "Users can view own gate scores" on public.gate_scores for select using (auth.uid() = user_id);
+create policy "Users can insert own gate scores" on public.gate_scores for insert with check (auth.uid() = user_id);
+
+-- ── AI Readiness Scores ─────────────────────────────────────
+create table if not exists public.ai_readiness_scores (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  dimensions jsonb not null,
+  overall integer not null,
+  headline text,
+  created_at timestamptz default now()
+);
+
+alter table public.ai_readiness_scores enable row level security;
+
+create policy "Users can view own AI scores" on public.ai_readiness_scores for select using (auth.uid() = user_id);
+create policy "Users can insert own AI scores" on public.ai_readiness_scores for insert with check (auth.uid() = user_id);
+
+-- ── Daily Task Scores ───────────────────────────────────────
+create table if not exists public.daily_task_scores (
+  id uuid default gen_random_uuid() primary key,
+  user_id uuid references public.profiles(id) on delete cascade not null,
+  task_type text not null,
+  task_prompt text,
+  dimension text,
+  answer_text text,
+  score integer,
+  result jsonb,
+  created_at timestamptz default now()
+);
+
+alter table public.daily_task_scores enable row level security;
+
+create policy "Users can view own task scores" on public.daily_task_scores for select using (auth.uid() = user_id);
+create policy "Users can insert own task scores" on public.daily_task_scores for insert with check (auth.uid() = user_id);
+
 -- ── Create profile on signup (trigger) ────────────────────────
 create or replace function public.handle_new_user()
 returns trigger as $$
