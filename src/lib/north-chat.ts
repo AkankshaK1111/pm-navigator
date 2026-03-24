@@ -1,8 +1,8 @@
-import { GoogleGenAI } from '@google/genai';
+import Groq from 'groq-sdk';
 import type { NorthContext } from '@/src/types';
 import { getCompanyByName, getTransitionIntelligence } from '@/src/data/market-data';
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
 /**
  * Build context string from user data for North's prompt.
@@ -35,10 +35,8 @@ export function buildNorthContext(ctx: NorthContext): string {
 
 /**
  * Keyword-based RAG fallback: match target company from JSON.
- * Port of compass-PM/api/north-chat.js lines 64-90.
  */
 function keywordRAG(context: string): string {
-  // Extract target company from context
   const targetLine = context.split('\n').find(l => l.startsWith('Target company:'));
   const targetName = targetLine ? targetLine.replace('Target company:', '').trim() : '';
 
@@ -57,7 +55,6 @@ function keywordRAG(context: string): string {
     }
   }
 
-  // Extract background for transition intelligence
   const bgLine = context.split('\n').find(l => l.startsWith('Background:'));
   const bgName = bgLine ? bgLine.replace('Background:', '').trim() : '';
   if (bgName) {
@@ -72,15 +69,14 @@ function keywordRAG(context: string): string {
 
 /**
  * Send a message to North and get a reply.
- * Port of compass-PM/api/north-chat.js.
  */
 export async function askNorth(
   message: string,
   context: NorthContext
 ): Promise<{ reply: string; ragSource: string }> {
-  if (!apiKey) throw new Error('Gemini API key not configured');
+  if (!apiKey) throw new Error('AI API key not configured');
 
-  const ai = new GoogleGenAI({ apiKey });
+  const client = new Groq({ apiKey, dangerouslyAllowBrowser: true });
   const contextStr = buildNorthContext(context);
   const ragContext = keywordRAG(contextStr);
 
@@ -93,7 +89,7 @@ Your personality:
 - Give signal and next action, not motivation
 - Reference the user's actual background, score, and gaps when relevant
 - When discussing companies, interview prep, or job market — use the real data provided below, not generic advice
-- Address the user by their first name naturally (not every message, but regularly — it builds trust)
+- Address the user by their first name naturally (not every message, but regularly)
 - If you don't have enough context to be specific, ask a clarifying question
 
 User context:
@@ -103,16 +99,14 @@ User message: "${message}"
 
 Reply as North. Plain conversational English. No bullet points. No markdown. No filler pleasantries. Just honest, specific, personalized signal.`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: prompt,
-    config: {
-      temperature: 0.7,
-      maxOutputTokens: 800,
-    },
+  const response = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.7,
+    max_tokens: 800,
   });
 
-  const reply = response.text?.trim() || 'Sorry, I couldn\'t generate a response. Try again.';
+  const reply = response.choices[0]?.message?.content?.trim() || "Sorry, I couldn't generate a response. Try again.";
   return { reply, ragSource: ragContext ? 'keyword' : 'none' };
 }
 

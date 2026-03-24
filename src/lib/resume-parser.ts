@@ -1,17 +1,16 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import type { ResumeData } from '@/src/types';
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
 /**
  * Parse resume text extracted from PDF and return structured PM-relevant data.
- * Port of compass-PM/api/parse-resume.js → @google/genai SDK.
  */
 export async function parseResumeText(text: string): Promise<ResumeData> {
-  if (!apiKey) throw new Error('Gemini API key not configured');
+  if (!apiKey) throw new Error('AI API key not configured');
   if (!text || text.trim().length < 50) throw new Error('Resume text too short to parse');
 
-  const ai = new GoogleGenAI({ apiKey });
+  const client = new Groq({ apiKey, dangerouslyAllowBrowser: true });
 
   const prompt = `You are a PM hiring expert. Analyse this resume and extract structured information.
 
@@ -22,57 +21,33 @@ Rules for pmHighlights:
 - Be specific to THIS resume, not generic
 
 Resume:
-${text.slice(0, 4000)}`;
+${text.slice(0, 4000)}
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      temperature: 0.1,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          name: { type: Type.STRING, description: 'Full name' },
-          email: { type: Type.STRING, description: 'Email or empty string if not found', nullable: true },
-          phone: { type: Type.STRING, description: 'Phone or empty string if not found', nullable: true },
-          currentRole: { type: Type.STRING, description: 'Most recent job title at Company (e.g. Senior Engineer at Infosys)' },
-          totalExperience: { type: Type.STRING, description: 'Total years of work experience as a string (e.g. "6 years")' },
-          experience: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: 'Up to 5 most recent roles as "Job Title at Company (start–end)"',
-          },
-          awards: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: 'Up to 3 awards or recognitions',
-          },
-          pmHighlights: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                text: { type: Type.STRING, description: 'One specific observation about a PM-relevant signal' },
-                type: { type: Type.STRING, description: 'One of: strength, warning, action' },
-                label: { type: Type.STRING, description: 'Brief label with prefix: ↑ for strength, ⚠ for warning, → for action' },
-              },
-              required: ['text', 'type', 'label'],
-            },
-            description: 'Exactly 4 PM-relevant highlights from the resume',
-          },
-          skills: {
-            type: Type.ARRAY,
-            items: { type: Type.STRING },
-            description: 'Up to 8 most relevant skills',
-          },
-        },
-        required: ['name', 'currentRole', 'totalExperience', 'experience', 'pmHighlights', 'skills'],
-      },
-    },
+Return JSON with this exact structure:
+{
+  "name": "Full name",
+  "email": "email or empty string",
+  "phone": "phone or empty string",
+  "currentRole": "Most recent job title at Company",
+  "totalExperience": "Total years as string e.g. '6 years'",
+  "experience": ["Job Title at Company (start–end)", ...up to 5],
+  "awards": ["award1", ...up to 3],
+  "pmHighlights": [
+    {"text": "specific observation", "type": "strength|warning|action", "label": "↑/⚠/→ brief label"},
+    ...exactly 4
+  ],
+  "skills": ["skill1", ...up to 8]
+}`;
+
+  const response = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.1,
+    max_tokens: 1000,
+    response_format: { type: 'json_object' },
   });
 
-  const data = JSON.parse(response.text || '{}');
+  const data = JSON.parse(response.choices[0]?.message?.content || '{}');
   return data as ResumeData;
 }
 
@@ -81,10 +56,7 @@ ${text.slice(0, 4000)}`;
  * Returns text from the first 3 pages.
  */
 export async function extractPdfText(file: File): Promise<string> {
-  // Dynamically import pdfjs-dist
   const pdfjsLib = await import('pdfjs-dist');
-
-  // Set worker source
   pdfjsLib.GlobalWorkerOptions.workerSrc = `https://unpkg.com/pdfjs-dist@${pdfjsLib.version}/build/pdf.worker.min.mjs`;
 
   const arrayBuffer = await file.arrayBuffer();

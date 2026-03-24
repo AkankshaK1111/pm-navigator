@@ -1,13 +1,12 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import type { AIReadinessScores, ResumeData, GateScore } from '@/src/types';
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
 /**
  * AI-driven 6-dimension readiness scoring.
- * Port of compass-PM/api/score-readiness.js — the calibrated prompt with
- * background baselines, cross-validation rules, calibration examples,
- * and weighted scoring formula.
+ * Calibrated prompt with background baselines, cross-validation rules,
+ * calibration examples, and weighted scoring formula.
  */
 export async function scoreReadinessWithAI(
   background: string,
@@ -15,9 +14,9 @@ export async function scoreReadinessWithAI(
   resumeData: ResumeData | null,
   gateScore: GateScore | null
 ): Promise<AIReadinessScores> {
-  if (!apiKey) throw new Error('Gemini API key not configured');
+  if (!apiKey) throw new Error('AI API key not configured');
 
-  const ai = new GoogleGenAI({ apiKey });
+  const client = new Groq({ apiKey, dangerouslyAllowBrowser: true });
 
   const prompt = `You are a PM readiness assessor for a career navigation platform for aspiring product managers.
 
@@ -84,50 +83,42 @@ Use these as starting points, then adjust up or down based on actual resume evid
 | MBA (no prior tech) | 40–50 | 45–55 | 55–65 | 20–30 | 20–30 | 50–60 |
 | CS / Engineering Student | 30–40 | 40–50 | 20–30 | 55–70 | 30–45 | 25–35 |
 
-These are baselines for someone with NO other evidence. Resume data and gate task should move scores up or down from these ranges.
-
 ---
 
 ## Scoring Bands
-- 0–30: No evidence whatsoever. Nothing in resume, gate task, or background maps to this dimension.
-- 31–50: Early signals — some adjacent experience but no direct PM-relevant proof. Significant gaps.
-- 51–65: Developing — real foundations visible in resume or gate task, but needs targeted work to be interview-ready.
-- 66–80: Solid — clear, direct evidence. Above average for aspiring PMs. Would pass a screening round on this dimension.
-- 81–100: Exceptional — rare. Multiple strong signals across resume AND gate task. Only for someone who could credibly interview at a top company on this dimension alone.
+- 0–30: No evidence whatsoever.
+- 31–50: Early signals — some adjacent experience but no direct PM-relevant proof.
+- 51–65: Developing — real foundations visible, but needs targeted work.
+- 66–80: Solid — clear, direct evidence. Would pass a screening round on this dimension.
+- 81–100: Exceptional — rare. Multiple strong signals across resume AND gate task.
 
 ---
 
 ## Calibration Examples
 
 **Example A — Backend Engineer, 3 years, gate score 52:**
-Product Sense: 42 (gate task showed some user thinking but led with solution), Analytical: 55 (resume has SQL + dashboards), Business: 28 (no business exposure), Technical: 78 (3 years backend, system design), AI Fluency: 32 (uses Copilot, no AI product work), Behavioural: 38 (IC role, no leadership signals). Overall: 46.
+Product Sense: 42, Analytical: 55, Business: 28, Technical: 78, AI Fluency: 32, Behavioural: 38. Overall: 46.
 
 **Example B — Management Consultant, 4 years, MBA, gate score 68:**
-Product Sense: 55 (gate task framed user problem well), Analytical: 58 (case work + MBA quant), Business: 72 (strategy projects, P&L exposure), Technical: 25 (no technical background), AI Fluency: 22 (no AI signals), Behavioural: 65 (led client teams, stakeholder management). Overall: 50.
+Product Sense: 55, Analytical: 58, Business: 72, Technical: 25, AI Fluency: 22, Behavioural: 65. Overall: 50.
 
 **Example C — Data Scientist, 2 years, gate score 45:**
-Product Sense: 38 (gate task was metric-heavy but missed the user), Analytical: 72 (strong data + ML pipeline work), Business: 35 (no business framing), Technical: 62 (Python, SQL, ML infrastructure), AI Fluency: 58 (built ML models, understands AI product implications), Behavioural: 32 (solo IC work). Overall: 50.
+Product Sense: 38, Analytical: 72, Business: 35, Technical: 62, AI Fluency: 58, Behavioural: 32. Overall: 50.
 
 ---
 
 ## Overall Score Calculation
-Weighted average with these weights:
-- Product Sense: 25% (most important — this is what PM interviews test hardest)
-- Analytical Depth: 20%
-- Business Framing: 15%
-- Technical Credibility: 15%
-- AI Fluency: 10%
-- Behavioural: 15%
+Weighted average: Product Sense 25%, Analytical Depth 20%, Business Framing 15%, Technical Credibility 15%, AI Fluency 10%, Behavioural 15%.
 
 ---
 
 ## Critical Rules
-1. You can ONLY score based on evidence present in the data below. No assumptions, no generous interpretation.
-2. If a dimension has zero evidence, score it 15–25 — not 0 (everyone has some baseline) but not 30+ (that requires real signals).
-3. The gate task is a LIVE SAMPLE of thinking. It is stronger evidence than resume claims for Product Sense and Analytical Depth.
-4. Resume job titles are weaker evidence than described accomplishments. "Software Engineer at Google" alone is worth less than "Built internal tool that reduced deploy time by 40% across 3 teams."
-5. Most career switchers should have 2–3 dimensions in the 30–50 range. If all 6 are above 50, you are likely inflating.
-6. The note for each dimension MUST reference specific evidence from the user's data — never generic advice.
+1. Only score based on evidence present in the data below. No assumptions.
+2. If a dimension has zero evidence, score it 15–25.
+3. The gate task is a LIVE SAMPLE — stronger evidence than resume claims for Product Sense and Analytical Depth.
+4. Resume job titles are weaker than described accomplishments.
+5. Most career switchers should have 2–3 dimensions in 30–50 range. If all 6 are above 50, you are inflating.
+6. Each dimension note MUST reference specific evidence from the user's data.
 
 ---
 
@@ -139,41 +130,31 @@ Resume data:
 ${resumeData ? JSON.stringify(resumeData, null, 2) : 'No resume uploaded'}
 
 Gate task result:
-${gateScore ? `Score: ${gateScore.score}/100\nHeadline: ${gateScore.headline}\nStrength: ${gateScore.strength}\nGap: ${gateScore.gap}` : 'No gate task completed'}`;
+${gateScore ? `Score: ${gateScore.score}/100\nHeadline: ${gateScore.headline}\nStrength: ${gateScore.strength}\nGap: ${gateScore.gap}` : 'No gate task completed'}
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      temperature: 0.3,
-      maxOutputTokens: 1200,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          dimensions: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                name: { type: Type.STRING, description: 'Dimension name (Product Sense, Analytical Depth, Business Framing, Technical Credibility, AI Fluency, Behavioural)' },
-                score: { type: Type.NUMBER, description: '0-100 score' },
-                status: { type: Type.STRING, description: 'Gap, Developing, Solid, or Strong' },
-                note: { type: Type.STRING, description: 'One sentence referencing specific evidence from this user\'s data' },
-              },
-              required: ['name', 'score', 'status', 'note'],
-            },
-            description: 'Exactly 6 dimensions scored',
-          },
-          overall: { type: Type.NUMBER, description: 'Weighted overall score using the formula above' },
-          headline: { type: Type.STRING, description: 'One sentence — honest, specific to this user, not generic motivation' },
-        },
-        required: ['dimensions', 'overall', 'headline'],
-      },
-    },
+Return JSON with this exact structure:
+{
+  "dimensions": [
+    {"name": "Product Sense", "score": 0-100, "status": "Gap|Developing|Solid|Strong", "note": "one sentence referencing specific evidence"},
+    {"name": "Analytical Depth", "score": 0-100, "status": "...", "note": "..."},
+    {"name": "Business Framing", "score": 0-100, "status": "...", "note": "..."},
+    {"name": "Technical Credibility", "score": 0-100, "status": "...", "note": "..."},
+    {"name": "AI Fluency", "score": 0-100, "status": "...", "note": "..."},
+    {"name": "Behavioural", "score": 0-100, "status": "...", "note": "..."}
+  ],
+  "overall": 0-100,
+  "headline": "One sentence — honest, specific to this user"
+}`;
+
+  const response = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    max_tokens: 1200,
+    response_format: { type: 'json_object' },
   });
 
-  const data = JSON.parse(response.text || '{}');
+  const data = JSON.parse(response.choices[0]?.message?.content || '{}');
   return data as AIReadinessScores;
 }
 

@@ -1,41 +1,32 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import type { RejectionDiagnosis, ResumeData, GateScore, AIReadinessScores } from '@/src/types';
 import { getCompanyByName } from '@/src/data/market-data';
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
 /**
  * Step 1: IDENTIFY — extract company name and round from user message.
  */
 async function identifyCompany(
-  ai: GoogleGenAI,
+  client: Groq,
   message: string
 ): Promise<{ company: string; round: string }> {
-  const prompt = `Extract the company name and interview round from this message. Only return a company if the user EXPLICITLY names one in their message. Do NOT assume or fill in a company they did not mention.
+  try {
+    const response = await client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{
+        role: 'user',
+        content: `Extract the company name and interview round from this message. Only return a company if the user EXPLICITLY names one. Do NOT assume.
 
 User message: "${message || 'I got rejected'}"
 
-Return JSON: { "company": "<company name ONLY if explicitly mentioned, otherwise 'unknown'>", "round": "<specific round like 'case study' or 'analytical' or 'unknown'>" }`;
-
-  try {
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        temperature: 0.1,
-        maxOutputTokens: 200,
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            company: { type: Type.STRING },
-            round: { type: Type.STRING },
-          },
-          required: ['company', 'round'],
-        },
-      },
+Return JSON: {"company": "<company or 'unknown'>", "round": "<round or 'unknown'>"}`,
+      }],
+      temperature: 0.1,
+      max_tokens: 200,
+      response_format: { type: 'json_object' },
     });
-    return JSON.parse(response.text || '{"company":"unknown","round":"unknown"}');
+    return JSON.parse(response.choices[0]?.message?.content || '{"company":"unknown","round":"unknown"}');
   } catch {
     return { company: 'unknown', round: 'unknown' };
   }
@@ -63,7 +54,7 @@ Switcher note: ${match.switcherNote}`;
 }
 
 /**
- * Steps 3 & 4: DIAGNOSE + GENERATE — single prompt for diagnosis and 2-week plan.
+ * Steps 3 & 4: DIAGNOSE + GENERATE — diagnosis and 2-week plan.
  */
 export async function runRejectionAgent(
   message: string,
@@ -73,12 +64,12 @@ export async function runRejectionAgent(
   gateScore: GateScore | null,
   readinessScores: AIReadinessScores | null
 ): Promise<{ diagnosis: RejectionDiagnosis | null; needsInfo: boolean; question?: string }> {
-  if (!apiKey) throw new Error('Gemini API key not configured');
+  if (!apiKey) throw new Error('AI API key not configured');
 
-  const ai = new GoogleGenAI({ apiKey });
+  const client = new Groq({ apiKey, dangerouslyAllowBrowser: true });
 
   // Step 1: Identify company
-  const identified = await identifyCompany(ai, message);
+  const identified = await identifyCompany(client, message);
 
   if (!identified.company || identified.company === 'unknown') {
     return {
@@ -91,13 +82,12 @@ export async function runRejectionAgent(
   // Step 2: Retrieve company data
   const { data: companyData, ragSource } = retrieveCompanyData(identified.company);
 
-  // Build user scores string
   const userScores = readinessScores?.dimensions
     ? readinessScores.dimensions.map(d => `${d.name}: ${d.score}/100 (${d.status})`).join('\n')
     : 'No readiness scores available';
 
   // Steps 3 & 4: Diagnose + Generate plan
-  const prompt = `You are Compass's Post-Rejection Remediation Agent. A user just told you they got rejected. Your job is to diagnose WHY and build a recovery plan.
+  const prompt = `You are a Post-Rejection Remediation Agent. A user got rejected. Diagnose WHY and build a recovery plan.
 
 ## What Happened
 User message: "${message || 'I got rejected'}"
@@ -113,106 +103,70 @@ Target company: ${targetCompany || 'Not specified'}
 Current role: ${resumeData?.currentRole || 'Not provided'}
 Experience: ${resumeData?.totalExperience || 'Not provided'}
 Skills: ${resumeData?.skills ? resumeData.skills.join(', ') : 'Not provided'}
-
 Gate task: ${gateScore ? `${gateScore.score}/100 — ${gateScore.headline}` : 'Not completed'}
 
 ## User's Readiness Scores
 ${userScores}
 
 ## Your Task
-
-**Step 1 — Diagnose:** Compare the user's scores against the company's hiring bar. Identify which dimensions caused the rejection. Be specific — reference actual numbers.
-
-**Step 2 — Plan:** Create a 2-week day-by-day remediation plan that targets the 2-3 weakest dimensions relative to this company's bar. Each day should have one concrete exercise (not "read about X" — actual practice tasks with deliverables).
+**Step 1 — Diagnose:** Compare user scores against company hiring bar. Identify which dimensions caused the rejection with actual numbers.
+**Step 2 — Plan:** Create a 2-week day-by-day plan targeting 2-3 weakest dimensions. Each day: one concrete exercise with deliverable.
 
 ## Rules
-- Be honest and direct. This person just got rejected — they need signal, not sympathy.
-- Every claim must reference actual data (their score vs company bar).
-- The plan must be actionable — each day has a specific task with a clear output.
-- If you don't know the company or round, focus on their weakest dimensions overall.
-- Week 1 should focus on the biggest gap. Week 2 on the second gap + integration.`;
+- Be honest and direct — they need signal, not sympathy.
+- Reference actual data (score vs company bar).
+- Each day must have a specific task with clear output.
+- Week 1: biggest gap. Week 2: second gap + integration.
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      temperature: 0.3,
-      maxOutputTokens: 2500,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          company: { type: Type.STRING },
-          round: { type: Type.STRING },
-          headline: { type: Type.STRING, description: 'One hard-hitting sentence — what went wrong' },
-          rootCause: {
-            type: Type.OBJECT,
-            properties: {
-              primary: {
-                type: Type.OBJECT,
-                properties: {
-                  dimension: { type: Type.STRING },
-                  userScore: { type: Type.NUMBER },
-                  companyBar: { type: Type.NUMBER },
-                  gap: { type: Type.NUMBER },
-                  explanation: { type: Type.STRING },
-                },
-                required: ['dimension', 'userScore', 'companyBar', 'gap', 'explanation'],
-              },
-              secondary: {
-                type: Type.OBJECT,
-                properties: {
-                  dimension: { type: Type.STRING },
-                  userScore: { type: Type.NUMBER },
-                  companyBar: { type: Type.NUMBER },
-                  gap: { type: Type.NUMBER },
-                  explanation: { type: Type.STRING },
-                },
-                required: ['dimension', 'userScore', 'companyBar', 'gap', 'explanation'],
-              },
-            },
-            required: ['primary', 'secondary'],
-          },
-          recoveryPlan: {
-            type: Type.OBJECT,
-            properties: {
-              duration: { type: Type.STRING },
-              focusAreas: { type: Type.ARRAY, items: { type: Type.STRING } },
-              weeks: {
-                type: Type.ARRAY,
-                items: {
-                  type: Type.OBJECT,
-                  properties: {
-                    week: { type: Type.NUMBER },
-                    theme: { type: Type.STRING },
-                    days: {
-                      type: Type.ARRAY,
-                      items: {
-                        type: Type.OBJECT,
-                        properties: {
-                          day: { type: Type.NUMBER },
-                          task: { type: Type.STRING },
-                          output: { type: Type.STRING },
-                          time: { type: Type.STRING },
-                        },
-                        required: ['day', 'task', 'output', 'time'],
-                      },
-                    },
-                  },
-                  required: ['week', 'theme', 'days'],
-                },
-              },
-            },
-            required: ['duration', 'focusAreas', 'weeks'],
-          },
-          reapplySignal: { type: Type.STRING },
-        },
-        required: ['company', 'round', 'headline', 'rootCause', 'recoveryPlan', 'reapplySignal'],
+Return JSON:
+{
+  "company": "company name",
+  "round": "round or General",
+  "headline": "one hard-hitting sentence",
+  "rootCause": {
+    "primary": {"dimension": "name", "userScore": 0, "companyBar": 0, "gap": 0, "explanation": "one sentence"},
+    "secondary": {"dimension": "name", "userScore": 0, "companyBar": 0, "gap": 0, "explanation": "one sentence"}
+  },
+  "recoveryPlan": {
+    "duration": "2 weeks",
+    "focusAreas": ["dim1", "dim2"],
+    "weeks": [
+      {
+        "week": 1,
+        "theme": "what this week targets",
+        "days": [
+          {"day": 1, "task": "specific exercise", "output": "what they produce", "time": "estimated minutes"},
+          {"day": 2, "task": "...", "output": "...", "time": "..."},
+          {"day": 3, "task": "...", "output": "...", "time": "..."},
+          {"day": 4, "task": "...", "output": "...", "time": "..."},
+          {"day": 5, "task": "...", "output": "...", "time": "..."}
+        ]
       },
-    },
+      {
+        "week": 2,
+        "theme": "...",
+        "days": [
+          {"day": 1, "task": "...", "output": "...", "time": "..."},
+          {"day": 2, "task": "...", "output": "...", "time": "..."},
+          {"day": 3, "task": "...", "output": "...", "time": "..."},
+          {"day": 4, "task": "...", "output": "...", "time": "..."},
+          {"day": 5, "task": "...", "output": "...", "time": "..."}
+        ]
+      }
+    ]
+  },
+  "reapplySignal": "one sentence — when to try again and what score to hit"
+}`;
+
+  const response = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.3,
+    max_tokens: 2500,
+    response_format: { type: 'json_object' },
   });
 
-  const parsed = JSON.parse(response.text || '{}') as RejectionDiagnosis;
+  const parsed = JSON.parse(response.choices[0]?.message?.content || '{}') as RejectionDiagnosis;
   parsed.ragSource = ragSource;
 
   return { diagnosis: parsed, needsInfo: false };

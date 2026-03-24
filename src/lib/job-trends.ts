@@ -1,21 +1,20 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import type { TrendSignal, AIReadinessScores } from '@/src/types';
 import { getCompanyByName, getMarketTrends } from '@/src/data/market-data';
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
 /**
  * Get personalized trend signals using market data + user context.
- * Port of compass-PM/api/job-trends.js.
  */
 export async function getPersonalizedTrends(
   background: string,
   targetCompany: string,
   readinessScores: AIReadinessScores | null
 ): Promise<TrendSignal[]> {
-  if (!apiKey) throw new Error('Gemini API key not configured');
+  if (!apiKey) throw new Error('AI API key not configured');
 
-  const ai = new GoogleGenAI({ apiKey });
+  const client = new Groq({ apiKey, dangerouslyAllowBrowser: true });
   const trends = getMarketTrends();
   const targetMatch = getCompanyByName(targetCompany);
 
@@ -47,36 +46,23 @@ Dimension gaps: ${gaps || 'None identified'}
 - Keep each signal to 1–2 sentences max
 - Reference specific companies, numbers, and dimensions from the data
 
-Return exactly 4 signals.`;
+Return exactly 4 signals as JSON:
+{
+  "signals": [
+    {"text": "Signal text referencing real data", "impact": "positive|warning|neutral|negative"},
+    ...
+  ]
+}`;
 
-  const response = await ai.models.generateContent({
-    model: 'gemini-2.0-flash',
-    contents: prompt,
-    config: {
-      responseMimeType: 'application/json',
-      temperature: 0.5,
-      maxOutputTokens: 600,
-      responseSchema: {
-        type: Type.OBJECT,
-        properties: {
-          signals: {
-            type: Type.ARRAY,
-            items: {
-              type: Type.OBJECT,
-              properties: {
-                text: { type: Type.STRING, description: 'Signal text' },
-                impact: { type: Type.STRING, description: 'positive, warning, neutral, or negative' },
-              },
-              required: ['text', 'impact'],
-            },
-          },
-        },
-        required: ['signals'],
-      },
-    },
+  const response = await client.chat.completions.create({
+    model: 'llama-3.3-70b-versatile',
+    messages: [{ role: 'user', content: prompt }],
+    temperature: 0.5,
+    max_tokens: 600,
+    response_format: { type: 'json_object' },
   });
 
-  const data = JSON.parse(response.text || '{"signals":[]}');
+  const data = JSON.parse(response.choices[0]?.message?.content || '{"signals":[]}');
   return data.signals as TrendSignal[];
 }
 

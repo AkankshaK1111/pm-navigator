@@ -1,15 +1,14 @@
-import { GoogleGenAI, Type } from '@google/genai';
+import Groq from 'groq-sdk';
 import type { UserProfile, AssessmentResult } from '@/src/types';
 
-const apiKey = process.env.GEMINI_API_KEY;
+const apiKey = process.env.GROQ_API_KEY;
 
 export function isGeminiConfigured(): boolean {
   return Boolean(apiKey);
 }
 
 /**
- * Enhance a rule-based assessment with Gemini AI insights.
- * Returns enhanced fields or null if Gemini is unavailable / fails.
+ * Enhance a rule-based assessment with AI insights.
  */
 export async function enhanceAssessmentWithAI(
   profile: UserProfile,
@@ -24,7 +23,7 @@ export async function enhanceAssessmentWithAI(
   if (!apiKey) return null;
 
   try {
-    const ai = new GoogleGenAI({ apiKey });
+    const client = new Groq({ apiKey, dangerouslyAllowBrowser: true });
 
     const prompt = `You are a senior PM career coach who has helped 500+ professionals transition into product management. Analyze this candidate's profile and assessment results.
 
@@ -54,48 +53,28 @@ RULE-BASED ASSESSMENT (already computed):
 
 Provide deeply personalized insights. Be honest and specific — reference their actual background, not generic advice. If the score is low, don't sugarcoat it.
 
-For aiCareerNarrative: Write a 2-3 sentence narrative about how this specific person's background creates a unique PM story. This should be something they could use in interviews.`;
+For aiCareerNarrative: Write a 2-3 sentence narrative about how this specific person's background creates a unique PM story.
 
-    const response = await ai.models.generateContent({
-      model: 'gemini-2.0-flash',
-      contents: prompt,
-      config: {
-        responseMimeType: 'application/json',
-        responseSchema: {
-          type: Type.OBJECT,
-          properties: {
-            aiPersonalityFit: {
-              type: Type.STRING,
-              description: 'A personalized 2-3 sentence assessment of how their personality and background fit PM, referencing specific details from their profile',
-            },
-            aiStrengths: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: '3 specific strengths based on their profile — each should reference a concrete detail, not be generic',
-            },
-            aiWeaknesses: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: '3 specific areas for growth — be honest and actionable, reference their actual gaps',
-            },
-            aiRecommendations: {
-              type: Type.ARRAY,
-              items: { type: Type.STRING },
-              description: '4 specific, actionable next steps personalized to their situation. Each should be a concrete action, not vague advice.',
-            },
-            aiCareerNarrative: {
-              type: Type.STRING,
-              description: 'A 2-3 sentence career narrative they could use in PM interviews, connecting their background to PM',
-            },
-          },
-          required: ['aiPersonalityFit', 'aiStrengths', 'aiWeaknesses', 'aiRecommendations', 'aiCareerNarrative'],
-        },
-      },
+Return JSON with this exact structure:
+{
+  "aiPersonalityFit": "A personalized 2-3 sentence assessment",
+  "aiStrengths": ["strength1", "strength2", "strength3"],
+  "aiWeaknesses": ["weakness1", "weakness2", "weakness3"],
+  "aiRecommendations": ["rec1", "rec2", "rec3", "rec4"],
+  "aiCareerNarrative": "2-3 sentence career narrative"
+}`;
+
+    const response = await client.chat.completions.create({
+      model: 'llama-3.3-70b-versatile',
+      messages: [{ role: 'user', content: prompt }],
+      temperature: 0.5,
+      max_tokens: 1000,
+      response_format: { type: 'json_object' },
     });
 
-    const data = JSON.parse(response.text || '{}');
+    const data = JSON.parse(response.choices[0]?.message?.content || '{}');
     return data;
-  } catch (error) {
+  } catch {
     return null;
   }
 }
