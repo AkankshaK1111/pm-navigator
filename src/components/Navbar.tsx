@@ -1,0 +1,81 @@
+import { Compass, User, LayoutDashboard, Target, Map, MessageSquare, Moon, Sun, LogOut } from "lucide-react";
+import { Link } from "react-router-dom";
+import { useState, useEffect } from "react";
+import { useAuth } from "@/src/lib/auth-context";
+import { signOut } from "@/src/lib/supabase-storage";
+
+export default function Navbar() {
+  const { user } = useAuth();
+
+  const [isDark, setIsDark] = useState(() => {
+    if (typeof window !== "undefined") {
+      return document.documentElement.classList.contains("dark") || 
+             localStorage.getItem("theme") === "dark";
+    }
+    return false;
+  });
+
+  useEffect(() => {
+    if (isDark) {
+      document.documentElement.classList.add("dark");
+      localStorage.setItem("theme", "dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+      localStorage.setItem("theme", "light");
+    }
+  }, [isDark]);
+
+  return (
+    <nav className="fixed top-0 w-full border-b border-border bg-background/80 backdrop-blur-md z-50">
+      <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+        <div className="flex justify-between h-16 items-center">
+          <Link to="/" className="flex items-center gap-2">
+            <Compass className="w-8 h-8 text-accent" />
+            <span className="text-xl font-bold tracking-tight text-primary">PM Navigator</span>
+          </Link>
+          <div className="hidden md:flex items-center gap-8 text-sm font-medium text-muted-foreground">
+            <Link to="/assessment" className="hover:text-accent transition-colors flex items-center gap-1">
+              <Target className="w-4 h-4" /> Assessment
+            </Link>
+            <Link to="/roadmap" className="hover:text-accent transition-colors flex items-center gap-1">
+              <Map className="w-4 h-4" /> Roadmap
+            </Link>
+            <Link to="/dashboard" className="hover:text-accent transition-colors flex items-center gap-1">
+              <LayoutDashboard className="w-4 h-4" /> Dashboard
+            </Link>
+            <Link to="/mock-interview" className="hover:text-accent transition-colors flex items-center gap-1">
+              <MessageSquare className="w-4 h-4" /> Mock Interview
+            </Link>
+          </div>
+          <div className="flex items-center gap-2">
+            <button 
+              onClick={() => setIsDark(!isDark)}
+              className="p-2 rounded-full hover:bg-secondary transition-colors text-primary"
+              aria-label="Toggle Dark Mode"
+            >
+              {isDark ? <Sun className="w-5 h-5" /> : <Moon className="w-5 h-5" />}
+            </button>
+            {user ? (
+              <div className="flex items-center gap-2">
+                <Link to="/dashboard" className="w-8 h-8 rounded-full bg-accent text-white flex items-center justify-center text-sm font-bold">
+                  {user.email?.[0]?.toUpperCase() || 'U'}
+                </Link>
+                <button
+                  onClick={() => signOut()}
+                  className="p-2 rounded-full hover:bg-secondary transition-colors text-muted-foreground"
+                  title="Sign out"
+                >
+                  <LogOut className="w-4 h-4" />
+                </button>
+              </div>
+            ) : (
+              <Link to="/login" className="p-2 rounded-full hover:bg-secondary transition-colors text-primary">
+                <User className="w-5 h-5" />
+              </Link>
+            )}
+          </div>
+        </div>
+      </div>
+    </nav>
+  );
+}
