@@ -1,4 +1,4 @@
-import { Compass, User, LayoutDashboard, Target, Map, MessageSquare, Moon, Sun, LogOut } from "lucide-react";
+import { Compass, User, LayoutDashboard, Target, Map, MessageSquare, Briefcase, ShieldCheck, Moon, Sun, LogOut } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/src/lib/auth-context";
@@ -45,6 +45,12 @@ export default function Navbar() {
             </Link>
             <Link to="/mock-interview" className="hover:text-accent transition-colors flex items-center gap-1">
               <MessageSquare className="w-4 h-4" /> Mock Interview
+            </Link>
+            <Link to="/gate" className="hover:text-accent transition-colors flex items-center gap-1">
+              <ShieldCheck className="w-4 h-4" /> Gate
+            </Link>
+            <Link to="/jobs" className="hover:text-accent transition-colors flex items-center gap-1">
+              <Briefcase className="w-4 h-4" /> Jobs
             </Link>
           </div>
           <div className="flex items-center gap-2">
