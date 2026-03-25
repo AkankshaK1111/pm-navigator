@@ -2,6 +2,7 @@ import { useState } from 'react';
 import type { DailyTaskScore, TaskScoringType } from '@/src/types';
 import { scoreDailyTask } from '@/src/lib/task-scorer';
 import { saveDailyTaskResult } from '@/src/lib/storage';
+import { useXP } from '@/src/hooks/useXP';
 
 interface TaskSubmissionProps {
   taskId: string;
@@ -28,6 +29,7 @@ export default function TaskSubmission({
   const [loading, setLoading] = useState(false);
   const [result, setResult] = useState<DailyTaskScore | null>(null);
   const [error, setError] = useState('');
+  const { award } = useXP();
 
   const canSubmit = text.length >= 20 && !loading;
 
@@ -50,6 +52,7 @@ export default function TaskSubmission({
         result: score,
         createdAt: new Date().toISOString(),
       });
+      award('daily-task', 10 + Math.floor(score.score / 10), taskPrompt);
       onScored?.(score);
     } catch (e: any) {
       setError(e.message || 'Failed to score your response');

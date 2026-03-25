@@ -8,6 +8,7 @@ import {
   AIReadinessScores,
   DailyTaskRecord,
   NorthMessage,
+  StreakXPState,
 } from '@/src/types';
 
 const STORAGE_KEY = 'pm_navigator_progress';
@@ -26,6 +27,7 @@ function getDefaultProgress(): SavedProgress {
     dailyTaskHistory: [],
     targetCompany: null,
     northChatHistory: [],
+    streakXP: null,
   };
 }
 
@@ -125,6 +127,12 @@ export function saveTargetCompany(company: string): void {
 export function saveNorthChatHistory(messages: NorthMessage[]): void {
   const progress = loadProgress();
   progress.northChatHistory = messages;
+  saveProgress(progress);
+}
+
+export function saveStreakXP(streakXP: StreakXPState): void {
+  const progress = loadProgress();
+  progress.streakXP = streakXP;
   saveProgress(progress);
 }
 

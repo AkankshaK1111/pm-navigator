@@ -16,6 +16,7 @@ import JobsPage from "@/src/app/(app)/jobs/page";
 import LoginPage from "@/src/app/(auth)/login/page";
 import { AuthProvider } from "@/src/lib/auth-context";
 import NorthChat from "@/src/components/NorthChat";
+import { Toaster } from "sonner";
 
 export default function App() {
   return (
@@ -37,6 +38,7 @@ export default function App() {
           </main>
           <Footer />
           <NorthChat />
+          <Toaster position="bottom-right" richColors />
         </div>
       </AuthProvider>
     </Router>

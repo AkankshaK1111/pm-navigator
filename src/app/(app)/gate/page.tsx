@@ -3,10 +3,12 @@ import { useNavigate } from 'react-router-dom';
 import GateTask from '@/src/components/GateTask';
 import ResumeUpload from '@/src/components/ResumeUpload';
 import { loadProgress } from '@/src/lib/storage';
+import { useXP } from '@/src/hooks/useXP';
 import type { GateScore, ResumeData } from '@/src/types';
 
 export default function GatePage() {
   const navigate = useNavigate();
+  const { award } = useXP();
   const [step, setStep] = useState<'resume' | 'gate' | 'done'>('resume');
   const [resumeData, setResumeData] = useState<ResumeData | null>(null);
   const [gateScore, setGateScore] = useState<GateScore | null>(null);
@@ -33,6 +35,7 @@ export default function GatePage() {
   function handleGateScored(score: GateScore) {
     setGateScore(score);
     setStep('done');
+    award('gate-task', 25, 'Gate Assessment');
   }
 
   return (

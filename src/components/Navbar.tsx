@@ -1,11 +1,13 @@
-import { Compass, User, LayoutDashboard, Target, Map, MessageSquare, Briefcase, ShieldCheck, Moon, Sun, LogOut } from "lucide-react";
+import { Compass, User, LayoutDashboard, Target, Map, MessageSquare, Briefcase, ShieldCheck, Moon, Sun, LogOut, Flame } from "lucide-react";
 import { Link } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/src/lib/auth-context";
 import { signOut } from "@/src/lib/supabase-storage";
+import { useXP } from "@/src/hooks/useXP";
 
 export default function Navbar() {
   const { user } = useAuth();
+  const { streakXP, level } = useXP();
 
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== "undefined") {
@@ -54,7 +56,31 @@ export default function Navbar() {
             </Link>
           </div>
           <div className="flex items-center gap-2">
-            <button 
+            {/* Streak & Level indicators */}
+            {streakXP.totalXP > 0 && (
+              <>
+                <Link
+                  to="/dashboard"
+                  className={`hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full text-xs font-bold transition-colors ${
+                    streakXP.currentStreak > 0
+                      ? 'bg-orange-500/10 text-orange-500'
+                      : 'bg-secondary text-muted-foreground'
+                  }`}
+                  title={`${streakXP.currentStreak} day streak`}
+                >
+                  <Flame className="w-3.5 h-3.5" />
+                  {streakXP.currentStreak}
+                </Link>
+                <Link
+                  to="/dashboard"
+                  className="hidden sm:flex items-center gap-1 px-2.5 py-1 rounded-full bg-accent/10 text-accent text-xs font-bold"
+                  title={level.title}
+                >
+                  Lv {level.level}
+                </Link>
+              </>
+            )}
+            <button
               onClick={() => setIsDark(!isDark)}
               className="p-2 rounded-full hover:bg-secondary transition-colors text-primary"
               aria-label="Toggle Dark Mode"

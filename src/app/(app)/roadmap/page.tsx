@@ -7,6 +7,7 @@ import { generateRoadmap } from '@/src/lib/roadmap-engine';
 import { saveTaskCompletionToSupabase } from '@/src/lib/supabase-storage';
 import { useAuth } from '@/src/lib/auth-context';
 import { useNavigate } from 'react-router-dom';
+import { useXP } from '@/src/hooks/useXP';
 import {
   ChevronDown,
   ChevronUp,
@@ -38,6 +39,7 @@ export default function RoadmapPage() {
   const [completedTasks, setCompletedTasks] = useState<Set<string>>(new Set());
   const [hasData, setHasData] = useState(false);
   const navigate = useNavigate();
+  const { award } = useXP();
   const { progress: authProgress, refreshProgress } = useAuth();
 
   useEffect(() => {
@@ -62,7 +64,7 @@ export default function RoadmapPage() {
     return roadmap.find(w => w.weekNumber === weekNum);
   }, [roadmap, authProgress]);
 
-  const handleToggleTask = (taskId: string, weekNumber: number) => {
+  const handleToggleTask = (taskId: string, weekNumber: number, taskTitle?: string) => {
     const willBeCompleted = !completedTasks.has(taskId);
     setCompletedTasks(prev => {
       const next = new Set(prev);
@@ -71,6 +73,9 @@ export default function RoadmapPage() {
       return next;
     });
     saveTaskCompletionToSupabase(weekNumber, taskId, willBeCompleted);
+    if (willBeCompleted) {
+      award('roadmap-task', 5, taskTitle || 'Roadmap task');
+    }
     refreshProgress();
   };
 
@@ -153,7 +158,7 @@ export default function RoadmapPage() {
                       className={`flex items-center gap-3 p-3 rounded-xl border transition-all cursor-pointer ${
                         done ? 'bg-accent/10 border-accent/20' : 'bg-card border-border hover:border-accent'
                       }`}
-                      onClick={() => handleToggleTask(task.id, currentWeekData.weekNumber)}
+                      onClick={() => handleToggleTask(task.id, currentWeekData.weekNumber, task.title)}
                     >
                       {done ? (
                         <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />
@@ -269,7 +274,7 @@ export default function RoadmapPage() {
                               >
                                 <div className="flex items-start gap-3">
                                   <button
-                                    onClick={() => handleToggleTask(task.id, week.weekNumber)}
+                                    onClick={() => handleToggleTask(task.id, week.weekNumber, task.title)}
                                     className="mt-0.5 shrink-0"
                                   >
                                     {done ? (

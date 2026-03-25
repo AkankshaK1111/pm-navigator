@@ -8,9 +8,9 @@ import { generateRoadmap } from '@/src/lib/roadmap-engine';
 import { saveTaskCompletionToSupabase } from '@/src/lib/supabase-storage';
 import { useAuth } from '@/src/lib/auth-context';
 import { useNavigate, Link } from 'react-router-dom';
+import { useXP } from '@/src/hooks/useXP';
 import {
   Target,
-  Calendar,
   CheckCircle2,
   Circle,
   Clock,
@@ -21,6 +21,8 @@ import {
   ArrowRight,
   Award,
   BarChart3,
+  Flame,
+  Zap,
 } from 'lucide-react';
 
 export default function DashboardPage() {
@@ -32,6 +34,7 @@ export default function DashboardPage() {
   const [daysInPrep, setDaysInPrep] = useState(0);
   const navigate = useNavigate();
   const { progress: authProgress, refreshProgress } = useAuth();
+  const { streakXP, level, nextLevel, levelProgress, award } = useXP();
 
   useEffect(() => {
     if (authProgress.oderedProfile && authProgress.assessmentResult) {
@@ -61,7 +64,7 @@ export default function DashboardPage() {
   const currentWeekNum = authProgress.currentWeek || 1;
   const currentWeekData = roadmap.find(w => w.weekNumber === currentWeekNum);
 
-  const handleToggleTask = (taskId: string) => {
+  const handleToggleTask = (taskId: string, taskTitle?: string) => {
     const willBeCompleted = !completedTasks.has(taskId);
     setCompletedTasks(prev => {
       const next = new Set(prev);
@@ -70,6 +73,9 @@ export default function DashboardPage() {
       return next;
     });
     saveTaskCompletionToSupabase(currentWeekNum, taskId, willBeCompleted);
+    if (willBeCompleted) {
+      award('roadmap-task', 5, taskTitle || 'Roadmap task');
+    }
     refreshProgress();
     // Recalculate readiness
     if (authProgress.oderedProfile) {
@@ -157,14 +163,17 @@ export default function DashboardPage() {
             </CardContent>
           </Card>
 
-          {/* Days in Prep */}
+          {/* Streak */}
           <Card className="border-none shadow-md">
             <CardContent className="p-5 flex flex-col items-center text-center">
-              <div className="p-3 rounded-xl bg-accent/10 mb-2">
-                <Calendar className="w-8 h-8 text-accent" />
+              <div className="p-3 rounded-xl bg-orange-500/10 mb-2">
+                <Flame className="w-8 h-8 text-orange-500" />
               </div>
-              <div className="text-2xl font-extrabold text-primary">{daysInPrep}</div>
-              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Days in Prep</div>
+              <div className="text-2xl font-extrabold text-primary">{streakXP.currentStreak}</div>
+              <div className="text-xs font-bold text-muted-foreground uppercase tracking-wider">Day Streak</div>
+              {streakXP.bestStreak > 0 && (
+                <div className="text-[10px] text-muted-foreground mt-1">Best: {streakXP.bestStreak}</div>
+              )}
             </CardContent>
           </Card>
 
@@ -195,6 +204,44 @@ export default function DashboardPage() {
           </Card>
         </div>
 
+        {/* XP Progress */}
+        <Card className="border-none shadow-md">
+          <CardContent className="p-5">
+            <div className="flex items-center gap-4">
+              {/* Level Badge */}
+              <div className="flex flex-col items-center shrink-0">
+                <div className="w-12 h-12 rounded-full bg-accent text-white flex items-center justify-center font-extrabold text-lg">
+                  {level.level}
+                </div>
+                <span className="text-[10px] font-bold text-accent mt-1 whitespace-nowrap">{level.title}</span>
+              </div>
+
+              {/* Progress Bar */}
+              <div className="flex-1 min-w-0">
+                <div className="flex items-center justify-between mb-1.5">
+                  <div className="flex items-center gap-1.5 text-sm font-bold text-primary">
+                    <Zap className="w-4 h-4 text-amber-500" />
+                    {streakXP.totalXP} XP
+                  </div>
+                  <span className="text-xs text-muted-foreground">
+                    {nextLevel
+                      ? `${nextLevel.xpRequired - streakXP.totalXP} XP to ${nextLevel.title}`
+                      : 'Max level reached'}
+                  </span>
+                </div>
+                <div className="w-full h-3 bg-secondary rounded-full overflow-hidden">
+                  <motion.div
+                    initial={{ width: 0 }}
+                    animate={{ width: `${levelProgress}%` }}
+                    transition={{ duration: 0.8, delay: 0.1 }}
+                    className="h-full bg-gradient-to-r from-amber-500 to-orange-500 rounded-full"
+                  />
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+
         {/* Middle Row */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
           {/* This Week's Focus */}
@@ -214,7 +261,7 @@ export default function DashboardPage() {
                       className={`flex items-center gap-3 p-3 rounded-xl border cursor-pointer transition-all ${
                         done ? 'bg-accent/5 border-accent/20' : 'bg-card border-border hover:border-accent'
                       }`}
-                      onClick={() => handleToggleTask(task.id)}
+                      onClick={() => handleToggleTask(task.id, task.title)}
                     >
                       {done ? (
                         <CheckCircle2 className="w-5 h-5 text-accent shrink-0" />

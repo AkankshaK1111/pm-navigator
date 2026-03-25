@@ -1,6 +1,7 @@
 import { useState, useEffect } from "react";
 import { motion, AnimatePresence } from "motion/react";
 import { INTERVIEW_QUESTIONS, InterviewQuestion } from "@/src/data/interview-questions";
+import { useXP } from "@/src/hooks/useXP";
 import { Button } from "@/src/components/ui/Button";
 import { Card, CardHeader, CardTitle, CardDescription, CardContent, CardFooter } from "@/src/components/ui/Card";
 import { 
@@ -16,6 +17,7 @@ import {
 } from "lucide-react";
 
 export default function MockInterviewPage() {
+  const { award } = useXP();
   const [currentIdx, setCurrentIdx] = useState(0);
   const [isStarted, setIsStarted] = useState(false);
   const [showTips, setShowTips] = useState(false);
@@ -43,6 +45,7 @@ export default function MockInterviewPage() {
 
   const handleNext = () => {
     if (currentIdx < INTERVIEW_QUESTIONS.length - 1) {
+      award('mock-interview', 15, INTERVIEW_QUESTIONS[currentIdx].question);
       setCurrentIdx(currentIdx + 1);
       setShowTips(false);
     }

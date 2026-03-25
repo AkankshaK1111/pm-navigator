@@ -130,6 +130,7 @@ export interface SavedProgress {
   dailyTaskHistory: DailyTaskRecord[];
   targetCompany: string | null;
   northChatHistory: NorthMessage[];
+  streakXP: StreakXPState | null;
 }
 
 export interface MockInterviewRecord {
@@ -374,6 +375,34 @@ export interface NorthContext {
   gateScore: GateScore | null;
   resumeHighlights: PMHighlight[];
   aiDimensions: AIReadinessDimension[];
+}
+
+// ── Streak & XP System ─────────────────────────────────────
+export type XPSource = 'daily-task' | 'gate-task' | 'mock-interview' | 'roadmap-task';
+
+export interface XPEvent {
+  id: string;
+  source: XPSource;
+  baseXP: number;
+  multiplier: number;
+  totalXP: number;
+  description: string;
+  timestamp: string;
+}
+
+export interface LevelDef {
+  level: number;
+  title: string;
+  xpRequired: number;
+}
+
+export interface StreakXPState {
+  totalXP: number;
+  currentStreak: number;
+  bestStreak: number;
+  lastActiveDate: string | null; // "YYYY-MM-DD" local timezone
+  xpHistory: XPEvent[];
+  gateXPAwarded: boolean;
 }
 
 // Legacy compat for landing page components
