@@ -44,10 +44,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // Check current session
-    getCurrentUser().then(u => {
-      setUser(u ?? null);
+    // getSession() parses the #access_token hash fragment from OAuth redirects
+    supabase.auth.getSession().then(({ data: { session } }) => {
+      setUser(session?.user ?? null);
       setLoading(false);
+
+      // Clean the hash fragment from the URL after OAuth redirect
+      if (window.location.hash.includes('access_token')) {
+        window.history.replaceState(null, '', window.location.pathname);
+      }
     });
 
     // Listen for auth changes
