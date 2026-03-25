@@ -6,7 +6,12 @@ const supabaseAnonKey = (import.meta as any).env?.VITE_SUPABASE_ANON_KEY || '';
 // Only create client if env vars are configured
 export const supabase: SupabaseClient | null =
   supabaseUrl && supabaseAnonKey
-    ? createClient(supabaseUrl, supabaseAnonKey)
+    ? createClient(supabaseUrl, supabaseAnonKey, {
+        auth: {
+          detectSessionInUrl: true,
+          flowType: 'implicit',
+        },
+      })
     : null;
 
 export function isSupabaseConfigured(): boolean {

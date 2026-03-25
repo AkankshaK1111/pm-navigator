@@ -44,20 +44,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return;
     }
 
-    // getSession() parses the #access_token hash fragment from OAuth redirects
-    supabase.auth.getSession().then(({ data: { session } }) => {
+    // Register listener FIRST so it catches the SIGNED_IN event from hash parsing
+    const { data: { subscription } } = supabase.auth.onAuthStateChange((event, session) => {
       setUser(session?.user ?? null);
       setLoading(false);
 
       // Clean the hash fragment from the URL after OAuth redirect
-      if (window.location.hash.includes('access_token')) {
+      if (event === 'SIGNED_IN' && window.location.hash.includes('access_token')) {
         window.history.replaceState(null, '', window.location.pathname);
       }
     });
 
-    // Listen for auth changes
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
+    // Then check for existing session (also triggers hash fragment parsing)
+    supabase.auth.getSession().then(({ data: { session } }) => {
       setUser(session?.user ?? null);
+      setLoading(false);
     });
 
     return () => subscription.unsubscribe();
